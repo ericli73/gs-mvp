@@ -4,629 +4,1037 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Gift Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --primary: #7c3aed;
-      --accept: #10b981;
-      --decline: #ef4444;
-      --shadow: 0 20px 60px rgba(0,0,0,0.18);
-      --text: #1f2937;
-      --muted: #6b7280;
-      --light: #9ca3af;
+      --bg:      #F5EAE0;
+      --blob:    #E8C5B5;
+      --primary: #C25A3C;
+      --ph:      #A84830;
+      --card:    #FFFFFF;
+      --text:    #1C1009;
+      --muted:   #9B8070;
+      --border:  #EAE0D8;
+      --accept:  #4CAF79;
+      --decline: #E05252;
+      --shadow:  0 4px 32px rgba(0,0,0,0.07);
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
       min-height: 100vh;
-      background: linear-gradient(140deg, #6366f1 0%, #a855f7 55%, #ec4899 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; padding: 20px; position: relative;
     }
 
-    /* ── SETUP SCREEN ── */
-    #setup {
-      background: #fff;
-      border-radius: 28px;
-      padding: 40px 36px;
-      width: 100%;
-      max-width: 440px;
-      box-shadow: var(--shadow);
-      animation: fadeUp 0.45s ease;
+    .blob {
+      position: fixed; border-radius: 50%;
+      background: var(--blob); opacity: .55;
+      pointer-events: none; z-index: 0;
+    }
+    .blob-tl { width: 440px; height: 440px; top: -150px; left: -150px; }
+    .blob-br { width: 300px; height: 300px; bottom: -90px; right: -70px; }
+
+    .hidden { display: none !important; }
+
+    /* ── LOADING ── */
+    #loading-screen {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg);
+    }
+    .spinner {
+      width: 42px; height: 42px;
+      border: 4px solid var(--border); border-top-color: var(--primary);
+      border-radius: 50%; animation: spin .75s linear infinite;
     }
 
-    .setup-icon { font-size: 60px; text-align: center; display: block; margin-bottom: 14px; }
-
-    .setup-title {
-      font-size: 28px; font-weight: 800; color: var(--text);
-      text-align: center; margin-bottom: 6px;
+    /* ── AUTH SCREEN ── */
+    #auth-screen {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 24px;
+      animation: fadeUp .4s ease;
     }
 
-    .setup-sub {
-      color: var(--muted); text-align: center; font-size: 15px; margin-bottom: 30px;
+    .auth-brand { text-align: center; }
+    .auth-logo  { font-size: 64px; margin-bottom: 10px; display: block; }
+    .auth-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 46px; font-weight: 800; color: var(--text);
+      letter-spacing: -.5px; margin-bottom: 8px;
+    }
+    .auth-tag { color: var(--muted); font-size: 16px; }
+
+    .auth-card {
+      background: var(--card); border-radius: 20px;
+      padding: 32px; width: 100%; box-shadow: var(--shadow);
     }
 
-    .label {
-      display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em;
-      text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+    .auth-google {
+      width: 100%; padding: 15px 20px;
+      background: white; border: 1.5px solid var(--border);
+      border-radius: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px; font-size: 15px; font-weight: 600;
+      color: var(--text); transition: background .18s, border-color .18s;
+      margin-bottom: 4px;
+    }
+    .auth-google:hover { background: #fdf9f7; border-color: #c8b8a8; }
+
+    .auth-divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0; color: var(--muted); font-size: 13px;
+    }
+    .auth-divider::before, .auth-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
     }
 
-    .group { margin-bottom: 20px; }
+    .auth-field { margin-bottom: 12px; }
 
-    input[type="text"], input[type="number"] {
-      width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 14px;
-      font-size: 16px; color: var(--text); outline: none;
-      transition: border-color .2s;
+    .t-input {
+      width: 100%; padding: 15px 18px;
+      border: 1.5px solid var(--border); border-radius: 14px;
+      font-family: 'Inter', sans-serif; font-size: 15px; color: var(--text);
+      background: var(--card); outline: none;
+      transition: border-color .18s;
     }
-    input:focus { border-color: #a78bfa; }
+    .t-input:focus { border-color: var(--primary); }
+    .t-input::placeholder { color: var(--muted); }
 
-    .budget-row { display: grid; grid-template-columns: 1fr 24px 1fr; gap: 10px; align-items: center; }
-    .budget-row span { text-align: center; color: var(--light); font-size: 18px; }
+    .btn-p {
+      width: 100%; padding: 16px; margin-top: 4px;
+      background: var(--primary); color: white; border: none;
+      border-radius: 14px; font-family: 'Inter', sans-serif;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: background .18s, transform .12s;
+    }
+    .btn-p:hover { background: var(--ph); }
+    .btn-p:active { transform: scale(.98); }
+
+    .auth-toggle {
+      text-align: center; font-size: 14px; color: var(--muted);
+      margin-top: 18px;
+    }
+    .auth-toggle span {
+      color: var(--primary); font-weight: 600;
+      cursor: pointer; text-decoration: underline;
+    }
+
+    .auth-msg {
+      font-size: 13px; margin-top: 10px; text-align: center;
+      padding: 10px; border-radius: 10px; display: none;
+    }
+    .auth-msg.error { color: var(--decline); background: #fdf0f0; }
+    .auth-msg.success { color: var(--accept); background: #f0fdf4; }
+
+    .auth-footer {
+      text-align: center; font-size: 12px; color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── MAIN APP ── */
+    #app {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 680px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 28px;
+    }
+
+    /* Setup header */
+    .app-header { text-align: center; }
+    .app-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 52px; font-weight: 800;
+      color: var(--text); letter-spacing: -.5px; margin-bottom: 10px;
+    }
+    .app-sub { color: var(--muted); font-size: 16px; margin-bottom: 24px; }
+
+    .steps { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .step-dot { height: 8px; border-radius: 50px; background: var(--border); transition: all .3s ease; }
+    .step-dot.active { background: var(--primary); width: 28px; }
+    .step-dot:not(.active) { width: 8px; }
+
+    /* Setup card */
+    .setup-card {
+      background: var(--card); border-radius: 20px;
+      padding: 32px; width: 100%; box-shadow: var(--shadow);
+      animation: fadeUp .35s ease;
+    }
+    .card-hd { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 28px; }
+    .card-icon {
+      width: 48px; height: 48px; flex-shrink: 0;
+      background: var(--bg); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .card-hd-text h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px; font-weight: 700; color: var(--text); margin-bottom: 4px;
+    }
+    .card-hd-text p { color: var(--muted); font-size: 14px; }
+
+    .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .opt-btn {
+      padding: 18px 20px; background: var(--card);
+      border: 1.5px solid var(--border); border-radius: 14px;
+      font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500;
+      color: var(--text); cursor: pointer; text-align: left;
+      transition: border-color .18s, background .18s, color .18s;
+    }
+    .opt-btn:hover, .opt-btn.selected { border-color: var(--primary); background: #FDF0EB; color: var(--primary); }
+
+    .budget-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+    .budget-div { color: var(--muted); text-align: center; font-size: 18px; }
     .dollar { position: relative; }
     .dollar::before {
-      content: '$'; position: absolute; left: 14px; top: 50%;
-      transform: translateY(-50%); color: var(--muted); pointer-events: none;
+      content: '$'; position: absolute; left: 16px; top: 50%;
+      transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 15px;
     }
-    .dollar input { padding-left: 26px; }
+    .dollar .t-input { padding-left: 30px; }
 
-    .btn-main {
-      width: 100%; padding: 16px; margin-top: 8px;
-      background: linear-gradient(135deg, #7c3aed, #a855f7);
-      color: #fff; border: none; border-radius: 14px;
-      font-size: 17px; font-weight: 700; cursor: pointer;
-      transition: transform .15s, opacity .15s;
-    }
-    .btn-main:hover { transform: translateY(-1px); }
-    .btn-main:active { transform: translateY(0); opacity: .9; }
-
-    .error-msg { color: #ef4444; font-size: 13px; margin-top: 6px; display: none; }
+    .err { color: var(--primary); font-size: 13px; margin-top: 8px; display: none; }
 
     /* ── CARD SCREEN ── */
-    #cards {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-      max-width: 400px;
+    #card-screen {
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
     }
-    #cards.active { display: flex; }
 
-    /* Stats bar */
-    .stats {
-      display: flex; gap: 20px;
-      background: rgba(255,255,255,.2);
-      backdrop-filter: blur(10px);
-      border-radius: 50px; padding: 10px 24px;
+    .topbar { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .topbar-stats { display: flex; gap: 10px; }
+    .topbar-pill {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      background: rgba(255,255,255,.65); backdrop-filter: blur(8px);
+      padding: 7px 14px; border-radius: 50px;
     }
-    .stat { display: flex; align-items: center; gap: 6px; color: #fff; font-weight: 600; font-size: 15px; }
+    .topbar-btn {
+      background: rgba(255,255,255,.65); backdrop-filter: blur(8px);
+      border: none; border-radius: 50px; padding: 7px 14px;
+      font-size: 13px; font-weight: 600; color: var(--text);
+      cursor: pointer; transition: background .18s;
+    }
+    .topbar-btn:hover { background: rgba(255,255,255,.9); }
 
-    /* Stack illusion */
-    .stack {
-      position: relative; width: 100%; height: 480px;
-    }
-    .stack::before, .stack::after {
-      content: ''; position: absolute;
-      left: 0; right: 0; bottom: 0; border-radius: 24px;
-    }
+    /* Stack */
+    .stack { position: relative; width: 100%; height: 490px; }
     .stack::before {
-      height: calc(100% - 12px);
-      background: rgba(255,255,255,.35);
-      transform: translateY(12px) scale(.95);
-      z-index: 1;
+      content: ''; position: absolute; inset: 0;
+      background: rgba(255,255,255,.45); border-radius: 20px;
+      transform: translateY(10px) scale(.96); z-index: 1;
     }
     .stack::after {
-      height: calc(100% - 6px);
-      background: rgba(255,255,255,.6);
-      transform: translateY(6px) scale(.975);
-      z-index: 2;
+      content: ''; position: absolute; inset: 0;
+      background: rgba(255,255,255,.7); border-radius: 20px;
+      transform: translateY(5px) scale(.98); z-index: 2;
     }
 
-    /* Card */
-    .card {
+    /* Gift card */
+    .gift-card {
       position: absolute; inset: 0;
-      background: #fff; border-radius: 24px;
-      padding: 26px; box-shadow: var(--shadow);
-      z-index: 10; cursor: grab;
-      user-select: none; touch-action: none;
-      display: flex; flex-direction: column; gap: 14px;
+      background: var(--card); border-radius: 20px;
+      box-shadow: var(--shadow); z-index: 10;
+      cursor: grab; user-select: none; touch-action: none;
+      display: flex; flex-direction: column; overflow: hidden;
     }
-    .card:active { cursor: grabbing; }
+    .gift-card:active { cursor: grabbing; }
 
-    /* Swipe overlays */
-    .overlay {
-      position: absolute; inset: 0; border-radius: 24px;
+    .gift-card-img { width: 100%; height: 180px; object-fit: contain; background: var(--bg); flex-shrink: 0; }
+    .gift-card-img-ph {
+      width: 100%; height: 200px; flex-shrink: 0;
+      background: linear-gradient(135deg, #F5EAE0, #EDCFC0);
+      display: flex; align-items: center; justify-content: center; font-size: 72px;
+    }
+
+    .gift-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; overflow: hidden; }
+    .gift-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg); border-radius: 50px; padding: 4px 12px;
+      font-size: 12px; font-weight: 600; color: var(--primary); width: fit-content;
+    }
+    .gift-name {
+      font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.2;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .gift-desc {
+      font-size: 13px; color: var(--muted); line-height: 1.5; flex: 1;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .gift-price { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: var(--primary); flex-shrink: 0; }
+    .gift-amazon {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;
+      background: var(--primary); color: white; border: none; border-radius: 12px;
+      font-size: 14px; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-decoration: none; transition: background .18s;
+    }
+    .gift-amazon:hover { background: var(--ph); }
+
+    /* Overlays */
+    .s-overlay {
+      position: absolute; inset: 0; border-radius: 20px;
       display: flex; align-items: center; padding: 24px;
       pointer-events: none; opacity: 0; z-index: 20;
     }
-    .overlay-yes {
-      background: rgba(16,185,129,.08);
-      border: 3px solid var(--accept);
-      justify-content: flex-start;
+    .ov-save { background: rgba(76,175,121,.07); border: 3px solid var(--accept); justify-content: flex-start; }
+    .ov-skip { background: rgba(224,82,82,.07);  border: 3px solid var(--decline); justify-content: flex-end; }
+    .ov-label {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px; font-weight: 800; padding: 6px 14px;
+      border-radius: 10px; border: 3px solid;
     }
-    .overlay-no {
-      background: rgba(239,68,68,.08);
-      border: 3px solid var(--decline);
-      justify-content: flex-end;
-    }
-    .overlay-label {
-      font-size: 32px; font-weight: 900; padding: 6px 14px;
-      border-radius: 10px; border: 4px solid;
-    }
-    .overlay-yes .overlay-label { color: var(--accept); border-color: var(--accept); transform: rotate(-15deg); }
-    .overlay-no  .overlay-label { color: var(--decline); border-color: var(--decline); transform: rotate(15deg); }
+    .ov-save .ov-label { color: var(--accept); border-color: var(--accept); transform: rotate(-15deg); }
+    .ov-skip .ov-label { color: var(--decline); border-color: var(--decline); transform: rotate(15deg); }
 
-    /* Card image */
-    .card-img {
-      width: calc(100% + 52px);
-      margin: -26px -26px 0;
-      height: 160px;
-      object-fit: cover;
-      border-radius: 24px 24px 0 0;
-      background: #f3f4f6;
-    }
-    .card-img-placeholder {
-      width: calc(100% + 52px);
-      margin: -26px -26px 0;
-      height: 160px;
-      background: linear-gradient(135deg, #e9d5ff, #fce7f3);
-      border-radius: 24px 24px 0 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 64px;
-    }
-
-    /* Card content */
-    .chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: #f3f4f6; border-radius: 50px;
-      padding: 5px 12px; font-size: 13px; font-weight: 600;
-      color: var(--muted); width: fit-content;
-    }
-    .chip-emoji { font-size: 18px; }
-
-    .card-name { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.2; }
-
-    .card-desc { font-size: 14px; color: var(--muted); line-height: 1.6; flex: 1; }
-
-    .card-price { font-size: 22px; font-weight: 800; color: var(--primary); }
-
-    .amazon-btn {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 13px; background: #ff9900; color: #fff;
-      border: none; border-radius: 14px; font-size: 15px; font-weight: 700;
-      cursor: pointer; text-decoration: none;
-      transition: background .2s;
-    }
-    .amazon-btn:hover { background: #e88e00; }
-
-    /* Loading / error states */
-    .center-state {
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 14px; height: 100%; text-align: center;
-    }
-    .spinner {
-      width: 46px; height: 46px;
-      border: 4px solid #e5e7eb; border-top-color: var(--primary);
-      border-radius: 50%; animation: spin .75s linear infinite;
-    }
-    .state-text { color: var(--muted); font-size: 15px; }
-    .retry-btn {
-      padding: 10px 22px; background: var(--primary); color: #fff;
-      border: none; border-radius: 12px; font-size: 14px; font-weight: 600;
-      cursor: pointer; margin-top: 4px;
-    }
+    /* Loading / error */
+    .c-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 100%; text-align: center; padding: 24px; }
+    .c-text { color: var(--muted); font-size: 15px; }
+    .retry-btn { padding: 10px 22px; background: var(--primary); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
 
     /* Action buttons */
-    .actions { display: flex; gap: 16px; width: 100%; }
+    .actions { display: flex; align-items: center; justify-content: center; gap: 28px; }
     .act-btn {
-      flex: 1; padding: 18px; border: none; border-radius: 20px;
-      font-size: 26px; font-weight: 700; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
+      border-radius: 50%; border: 2px solid; background: white; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
       transition: transform .15s, box-shadow .15s;
     }
-    .act-btn:disabled { opacity: .4; pointer-events: none; }
-    .act-btn:hover { transform: scale(1.05); }
-    .act-btn:active { transform: scale(.95); }
-    .act-btn span { font-size: 14px; font-weight: 600; }
+    .act-btn:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+    .act-btn:active { transform: scale(.93); }
+    .act-btn:disabled { opacity: .35; pointer-events: none; }
+    .btn-skip { width: 58px; height: 58px; border-color: #F0D8D8; color: var(--decline); font-size: 22px; }
+    .btn-save { width: 70px; height: 70px; border-color: #C8E8D8; color: var(--accept); font-size: 26px; }
 
-    .btn-no  { background: #fff; color: var(--decline); box-shadow: 0 8px 24px rgba(239,68,68,.2); }
-    .btn-yes { background: #fff; color: var(--accept);  box-shadow: 0 8px 24px rgba(16,185,129,.2); }
+    .hint { font-size: 12px; color: var(--muted); opacity: .65; }
+    .hint kbd { background: rgba(0,0,0,.06); border-radius: 4px; padding: 2px 6px; font-family: inherit; }
 
-    .hint { color: rgba(255,255,255,.65); font-size: 12px; }
-    .hint kbd { background: rgba(255,255,255,.2); border-radius: 4px; padding: 2px 6px; font-family: inherit; }
-
-    /* Saved button */
-    .saved-toggle {
-      background: rgba(255,255,255,.22); backdrop-filter: blur(10px);
-      border: none; color: #fff; padding: 11px 22px;
-      border-radius: 50px; font-size: 15px; font-weight: 600; cursor: pointer;
-      transition: background .2s;
+    .card-bottom { display: flex; gap: 10px; width: 100%; }
+    .bottom-btn {
+      flex: 1; padding: 12px;
+      background: rgba(255,255,255,.6); backdrop-filter: blur(8px);
+      border: none; border-radius: 14px;
+      font-size: 14px; font-weight: 600; color: var(--text);
+      cursor: pointer; transition: background .18s;
     }
-    .saved-toggle:hover { background: rgba(255,255,255,.32); }
+    .bottom-btn:hover { background: rgba(255,255,255,.9); }
 
-    /* ── SAVED PANEL ── */
+    /* ── PANELS ── */
     .backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      position: fixed; inset: 0; background: rgba(28,16,9,.28);
       z-index: 99; opacity: 0; pointer-events: none; transition: opacity .3s;
     }
     .backdrop.on { opacity: 1; pointer-events: auto; }
 
     .panel {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: #fff; border-radius: 24px 24px 0 0;
-      box-shadow: 0 -20px 60px rgba(0,0,0,.18);
+      background: white; border-radius: 24px 24px 0 0;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.1);
       transform: translateY(100%);
-      transition: transform .38s cubic-bezier(.25,.46,.45,.94);
+      transition: transform .35s cubic-bezier(.25,.46,.45,.94);
       z-index: 100; max-height: 80vh; display: flex; flex-direction: column;
     }
     .panel.open { transform: translateY(0); }
 
-    .panel-head {
-      padding: 20px 24px; border-bottom: 1px solid #f3f4f6;
-      display: flex; align-items: center; justify-content: space-between;
+    .filter-panel {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 340px; max-width: 90vw; background: white;
+      box-shadow: -12px 0 40px rgba(0,0,0,.1);
+      transform: translateX(100%);
+      transition: transform .35s cubic-bezier(.25,.46,.45,.94);
+      z-index: 100; display: flex; flex-direction: column;
     }
-    .panel-title { font-size: 20px; font-weight: 800; color: var(--text); }
-    .close-btn {
-      background: #f3f4f6; border: none; border-radius: 50%;
-      width: 34px; height: 34px; font-size: 18px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; color: var(--muted);
+    .filter-panel.open { transform: translateX(0); }
+
+    .panel-hd {
+      padding: 22px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .panel-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--text); }
+    .panel-close {
+      background: var(--bg); border: none; border-radius: 50%;
+      width: 36px; height: 36px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 16px; font-weight: 600;
     }
 
-    .saved-list { overflow-y: auto; flex: 1; padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; }
-
-    .saved-item {
-      display: flex; gap: 14px; padding: 14px;
-      background: #f9fafb; border-radius: 16px; align-items: flex-start;
-    }
-    .item-emoji { font-size: 30px; flex-shrink: 0; }
-    .item-name { font-weight: 700; color: var(--text); margin-bottom: 3px; font-size: 15px; }
-    .item-price { font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 8px; }
-    .item-link {
+    .saved-list { overflow-y: auto; flex: 1; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+    .saved-item { display: flex; gap: 14px; padding: 14px; background: var(--bg); border-radius: 14px; align-items: flex-start; }
+    .saved-emoji { font-size: 28px; flex-shrink: 0; }
+    .saved-name { font-family: 'Playfair Display', serif; font-weight: 700; color: var(--text); margin-bottom: 3px; font-size: 15px; }
+    .saved-price { font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 8px; }
+    .saved-actions { display: flex; gap: 8px; align-items: center; }
+    .saved-link {
       display: inline-flex; align-items: center; gap: 4px;
-      background: #ff9900; color: #fff; padding: 5px 11px;
-      border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none;
+      background: var(--primary); color: white;
+      padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none;
     }
+    .del-btn {
+      background: none; border: 1.5px solid var(--border); border-radius: 8px;
+      color: var(--muted); font-size: 12px; padding: 5px 10px; cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .del-btn:hover { border-color: var(--decline); color: var(--decline); }
 
-    .empty {
-      text-align: center; color: var(--light); padding: 36px 0;
-    }
+    .empty { text-align: center; color: var(--muted); padding: 36px 0; }
     .empty-icon { font-size: 44px; margin-bottom: 10px; }
 
-    .reset-btn {
-      margin: 12px 20px 20px; padding: 13px;
-      background: #f3f4f6; border: none; border-radius: 14px;
-      color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer;
-      transition: background .2s;
+    .panel-footer {
+      padding: 12px 24px 20px; border-top: 1px solid var(--border);
+      display: flex; gap: 10px; flex-shrink: 0;
     }
-    .reset-btn:hover { background: #e5e7eb; }
+    .panel-footer-btn {
+      flex: 1; padding: 12px; border: none; border-radius: 12px;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: background .18s;
+    }
+    .btn-reset  { background: var(--bg); color: var(--muted); }
+    .btn-reset:hover { background: var(--border); }
+    .btn-signout { background: #FDF0EB; color: var(--primary); }
+    .btn-signout:hover { background: #f7e0d4; }
+
+    .filter-body { padding: 20px 24px 28px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+    .f-group { margin-bottom: 20px; }
+    .f-label { display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+    .help-btn {
+      position: fixed; bottom: 24px; right: 24px; width: 40px; height: 40px;
+      background: #1C1009; border-radius: 50%; border: none; color: white;
+      font-size: 17px; font-weight: 600; cursor: default;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,.22);
+    }
+
+    /* ── PROFILE MENU ── */
+    #profile-menu {
+      position: fixed; top: 16px; right: 16px; z-index: 100;
+    }
+    .profile-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--primary); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.18);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .profile-avatar:hover { transform: scale(1.07); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+    .profile-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--card); border-radius: 12px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.13); border: 1px solid var(--border);
+      min-width: 150px; padding: 6px;
+      opacity: 0; pointer-events: none;
+      transform: translateY(-6px);
+      transition: opacity .18s, transform .18s;
+    }
+    #profile-menu:hover .profile-dropdown,
+    #profile-menu:focus-within .profile-dropdown {
+      opacity: 1; pointer-events: all; transform: translateY(0);
+    }
+    .profile-email {
+      font-size: 12px; color: var(--muted); padding: 8px 12px 6px;
+      border-bottom: 1px solid var(--border); margin-bottom: 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+    }
+    .profile-dropdown button {
+      width: 100%; text-align: left; background: none; border: none;
+      padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 500; color: var(--decline);
+      display: flex; align-items: center; gap: 8px;
+      transition: background .15s;
+    }
+    .profile-dropdown button:hover { background: #fdf1f1; }
 
     /* Animations */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(22px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes cardIn {
-      from { opacity: 0; transform: scale(.92); }
-      to   { opacity: 1; transform: scale(1); }
-    }
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes cardIn { from { opacity:0; transform:scale(.94); } to { opacity:1; transform:scale(1); } }
     .card-in { animation: cardIn .28s ease; }
 
-    @media (max-width: 420px) {
-      #setup { padding: 30px 20px; }
-      .card-name { font-size: 19px; }
+    @media (max-width: 500px) {
+      .app-title, .auth-title { font-size: 38px; }
+      .opt-grid { grid-template-columns: 1fr; }
       .hint { display: none; }
     }
   </style>
 </head>
 <body>
 
-<!-- SETUP -->
-<div id="setup">
-  <span class="setup-icon">🎁</span>
-  <h1 class="setup-title">Gift Finder</h1>
-  <p class="setup-sub">Let AI find the perfect gift, one idea at a time</p>
+  <div class="blob blob-tl"></div>
+  <div class="blob blob-br"></div>
+  <button class="help-btn">?</button>
 
-  <div class="group">
-    <label class="label" for="recipient">Who are you shopping for?</label>
-    <input type="text" id="recipient" placeholder="e.g. mom, best friend, coworker" maxlength="120" />
-    <p class="error-msg" id="err-recipient">Please describe who you're shopping for.</p>
-  </div>
-
-  <div class="group">
-    <label class="label">Budget range</label>
-    <div class="budget-row">
-      <div class="dollar"><input type="number" id="bmin" placeholder="25"  min="1" max="50000" value="25" /></div>
-      <span>→</span>
-      <div class="dollar"><input type="number" id="bmax" placeholder="100" min="1" max="50000" value="100" /></div>
-    </div>
-    <p class="error-msg" id="err-budget">Enter a valid range (min &lt; max).</p>
-  </div>
-
-  <button class="btn-main" id="start-btn">Find Gifts ✨</button>
-</div>
-
-<!-- CARDS -->
-<div id="cards">
-  <div class="stats">
-    <div class="stat">💚 <span id="cnt-saved">0</span> saved</div>
-    <div class="stat">💨 <span id="cnt-skip">0</span> skipped</div>
-  </div>
-
-  <div class="stack">
-    <div class="card" id="card">
-      <div class="center-state"><div class="spinner"></div></div>
+  <!-- Profile menu -->
+  <div id="profile-menu" class="hidden">
+    <button class="profile-avatar" aria-label="Account">👤</button>
+    <div class="profile-dropdown">
+      <div class="profile-email" id="profile-email-label"></div>
+      <button onclick="signOut()">🚪 Sign out</button>
     </div>
   </div>
 
-  <div class="actions">
-    <button class="act-btn btn-no"  id="btn-no"  onclick="decline()">✗ <span>Skip</span></button>
-    <button class="act-btn btn-yes" id="btn-yes" onclick="accept()">♥ <span>Save</span></button>
+  <!-- Loading -->
+  <div id="loading-screen">
+    <div class="spinner"></div>
   </div>
 
-  <p class="hint"><kbd>←</kbd> Skip &nbsp; <kbd>→</kbd> Save</p>
+  <!-- ══ AUTH SCREEN ══ -->
+  <div id="auth-screen" class="hidden">
+    <div class="auth-brand">
+      <span class="auth-logo">🎁</span>
+      <h1 class="auth-title">Gift Finder</h1>
+      <p class="auth-tag">Find the perfect gift, every time.</p>
+    </div>
 
-  <button class="saved-toggle" onclick="openPanel()">🎁 Saved gifts (<span id="cnt-panel">0</span>)</button>
-</div>
+    <div class="auth-card">
+      <!-- Google -->
+      <button class="auth-google" onclick="signInGoogle()">
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Continue with Google
+      </button>
 
-<!-- BACKDROP -->
-<div class="backdrop" id="backdrop" onclick="closePanel()"></div>
+      <div class="auth-divider">or</div>
 
-<!-- SAVED PANEL -->
-<div class="panel" id="panel">
-  <div class="panel-head">
-    <h2 class="panel-title">Saved Gifts 💝</h2>
-    <button class="close-btn" onclick="closePanel()">✕</button>
+      <!-- Email form -->
+      <div class="auth-field">
+        <input class="t-input" type="email" id="auth-email" placeholder="Email address" />
+      </div>
+      <div class="auth-field">
+        <input class="t-input" type="password" id="auth-password" placeholder="Password" />
+      </div>
+      <button class="btn-p" id="auth-submit" onclick="submitEmail()">Sign In</button>
+
+      <div class="auth-msg" id="auth-msg"></div>
+
+      <div class="auth-toggle">
+        <span id="auth-toggle-text">Don't have an account?</span>
+        <span onclick="toggleMode()"> <span id="auth-toggle-link">Sign up</span></span>
+      </div>
+    </div>
+
+    <p class="auth-footer">By continuing you agree to our Terms of Service<br>and Privacy Policy.</p>
   </div>
-  <div class="saved-list" id="saved-list">
-    <div class="empty"><div class="empty-icon">🎀</div><p>No saved gifts yet — swipe right!</p></div>
-  </div>
-  <button class="reset-btn" onclick="reset()">↩ Start over</button>
-</div>
 
-<script>
-  const S = {
-    recipient: '', bmin: 25, bmax: 100,
-    gift: null,
-    saved: [], skipped: 0,
-    seen: [],
-    loading: false,
-    drag: false, x0: 0, dx: 0,
-  };
+  <!-- ══ MAIN APP ══ -->
+  <div id="app" class="hidden">
 
-  function swapImgPlaceholder(img) {
-    const div = document.createElement('div');
-    div.className = 'card-img-placeholder';
-    div.textContent = img.dataset.emoji || '🎁';
-    img.replaceWith(div);
-  }
-
-  const $ = id => document.getElementById(id);
-  const setup  = $('setup');
-  const cards  = $('cards');
-  const card   = $('card');
-
-  /* ── SETUP ── */
-  $('start-btn').onclick = start;
-  $('recipient').addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
-
-  function start() {
-    const rec  = $('recipient').value.trim();
-    const bmin = parseInt($('bmin').value);
-    const bmax = parseInt($('bmax').value);
-
-    let ok = true;
-    if (!rec)               { show('err-recipient', true); ok = false; } else { show('err-recipient', false); }
-    if (!bmin || !bmax || bmin >= bmax) { show('err-budget', true);    ok = false; } else { show('err-budget', false);    }
-    if (!ok) return;
-
-    S.recipient = rec; S.bmin = bmin; S.bmax = bmax;
-    setup.style.display = 'none';
-    cards.classList.add('active');
-    load();
-  }
-
-  function show(id, visible) {
-    $(id).style.display = visible ? 'block' : 'none';
-  }
-
-  /* ── API ── */
-  async function load() {
-    if (S.loading) return;
-    S.loading = true;
-    setButtons(false);
-    renderLoading();
-
-    try {
-      const res = await fetch('/api/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: S.recipient, budgetMin: S.bmin, budgetMax: S.bmax, previousSuggestions: S.seen }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
-      const gift = await res.json();
-      S.gift = gift;
-      S.seen.push(gift.name);
-      renderGift(gift);
-    } catch (e) {
-      renderError(e.message);
-    } finally {
-      S.loading = false;
-      setButtons(true);
-    }
-  }
-
-  /* ── RENDER ── */
-  function renderLoading() {
-    card.innerHTML = `<div class="center-state"><div class="spinner"></div><p class="state-text">Finding gifts for ${esc(S.recipient)}…</p></div>`;
-    card.style.cssText = 'transform:; opacity:1;';
-  }
-
-  function renderGift(g) {
-    const imgHtml = g.imageUrl
-      ? `<img class="card-img" src="${esc(g.imageUrl)}" alt="${esc(g.name)}" onerror="swapImgPlaceholder(this)" data-emoji="${esc(g.emoji)}" />`
-      : `<div class="card-img-placeholder">${esc(g.emoji)}</div>`;
-
-    card.innerHTML = `
-      <div class="overlay overlay-yes" id="oy"><span class="overlay-label">SAVE</span></div>
-      <div class="overlay overlay-no"  id="on"><span class="overlay-label">SKIP</span></div>
-      ${imgHtml}
-      <div class="chip"><span class="chip-emoji">${esc(g.emoji)}</span>${esc(g.category)}</div>
-      <h2 class="card-name">${esc(g.name)}</h2>
-      <p class="card-desc">${esc(g.description)}</p>
-      <div class="card-price">${esc(g.price)}</div>
-      <a href="${esc(g.amazonUrl)}" target="_blank" rel="noopener" class="amazon-btn" onclick="event.stopPropagation()">
-        🛒 View on Amazon
-      </a>`;
-    card.style.transform = '';
-    card.style.opacity = '1';
-    card.classList.add('card-in');
-    setTimeout(() => card.classList.remove('card-in'), 300);
-    attachDrag();
-  }
-
-  function renderError(msg) {
-    card.innerHTML = `
-      <div class="center-state">
-        <div style="font-size:44px">😬</div>
-        <p class="state-text">${esc(msg)}</p>
-        <button class="retry-btn" onclick="load()">Try again</button>
-      </div>`;
-  }
-
-  /* ── DRAG ── */
-  function attachDrag() {
-    card.onmousedown = card.ontouchstart = dragStart;
-  }
-
-  function dragStart(e) {
-    if (S.loading) return;
-    const t = e.target;
-    if (t.closest('.amazon-btn')) return;
-    S.drag = true; S.x0 = clientX(e); S.dx = 0;
-    card.style.transition = 'none';
-    document.onmousemove = document.ontouchmove = dragMove;
-    document.onmouseup  = document.ontouchend  = dragEnd;
-  }
-
-  function dragMove(e) {
-    if (!S.drag) return;
-    S.dx = clientX(e) - S.x0;
-    card.style.transform = `translateX(${S.dx}px) rotate(${S.dx * .07}deg)`;
-    const oy = $('oy'), on = $('on');
-    if (!oy) return;
-    const t = 50, r = 90;
-    oy.style.opacity = S.dx >  t ? Math.min(1, (S.dx - t) / r) : 0;
-    on.style.opacity = S.dx < -t ? Math.min(1, (-S.dx - t) / r) : 0;
-  }
-
-  function dragEnd() {
-    if (!S.drag) return;
-    S.drag = false;
-    document.onmousemove = document.ontouchmove = null;
-    document.onmouseup   = document.ontouchend  = null;
-    card.style.transition = 'transform .3s ease, opacity .3s ease';
-    if      (S.dx >  110) accept();
-    else if (S.dx < -110) decline();
-    else {
-      card.style.transform = '';
-      const oy = $('oy'), on = $('on');
-      if (oy) oy.style.opacity = 0;
-      if (on) on.style.opacity = 0;
-    }
-  }
-
-  function clientX(e) { return e.touches ? e.touches[0].clientX : e.clientX; }
-
-  /* ── ACCEPT / DECLINE ── */
-  function accept() {
-    if (!S.gift || S.loading) return;
-    card.style.transition = 'transform .4s ease, opacity .4s ease';
-    card.style.transform  = 'translateX(160%) rotate(30deg)';
-    card.style.opacity    = '0';
-    S.saved.push(S.gift);
-    updateStats();
-    setTimeout(load, 360);
-  }
-
-  function decline() {
-    if (!S.gift || S.loading) return;
-    card.style.transition = 'transform .4s ease, opacity .4s ease';
-    card.style.transform  = 'translateX(-160%) rotate(-30deg)';
-    card.style.opacity    = '0';
-    S.skipped++;
-    updateStats();
-    setTimeout(load, 360);
-  }
-
-  function updateStats() {
-    $('cnt-saved').textContent  = S.saved.length;
-    $('cnt-skip').textContent   = S.skipped;
-    $('cnt-panel').textContent  = S.saved.length;
-  }
-
-  function setButtons(on) {
-    $('btn-yes').disabled = !on;
-    $('btn-no').disabled  = !on;
-  }
-
-  /* ── SAVED PANEL ── */
-  function openPanel() {
-    $('panel').classList.add('open');
-    $('backdrop').classList.add('on');
-    renderList();
-  }
-
-  function closePanel() {
-    $('panel').classList.remove('open');
-    $('backdrop').classList.remove('on');
-  }
-
-  function renderList() {
-    const el = $('saved-list');
-    if (!S.saved.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">🎀</div><p>No saved gifts yet — swipe right!</p></div>';
-      return;
-    }
-    el.innerHTML = S.saved.map(g => `
-      <div class="saved-item">
-        <span class="item-emoji">${esc(g.emoji)}</span>
-        <div>
-          <div class="item-name">${esc(g.name)}</div>
-          <div class="item-price">${esc(g.price)}</div>
-          <a href="${esc(g.amazonUrl)}" target="_blank" rel="noopener" class="item-link">🛒 Amazon</a>
+    <!-- Setup wrapper -->
+    <div id="setup-wrapper">
+      <div class="app-header">
+        <h1 class="app-title">Gift Finder</h1>
+        <p class="app-sub">Answer a few questions. Get the perfect gift.</p>
+        <div class="steps">
+          <div class="step-dot active" id="sd-1"></div>
+          <div class="step-dot" id="sd-2"></div>
+          <div class="step-dot" id="sd-3"></div>
+          <div class="step-dot" id="sd-4"></div>
         </div>
-      </div>`).join('');
-  }
+      </div>
 
-  /* ── RESET ── */
-  function reset() {
-    Object.assign(S, { recipient:'', bmin:25, bmax:100, gift:null, saved:[], skipped:0, seen:[], loading:false, drag:false, x0:0, dx:0 });
-    closePanel();
-    cards.classList.remove('active');
-    setup.style.display = '';
-    updateStats();
-  }
+      <!-- Step 1 — Occasion -->
+      <div class="setup-card" id="step-1">
+        <div class="card-hd">
+          <div class="card-icon">🎁</div>
+          <div class="card-hd-text">
+            <h2>What's the occasion?</h2>
+            <p>Every gift is better with context.</p>
+          </div>
+        </div>
+        <div class="opt-grid">
+          <button class="opt-btn" onclick="selectOccasion('Birthday')">Birthday</button>
+          <button class="opt-btn" onclick="selectOccasion('Holiday')">Holiday</button>
+          <button class="opt-btn" onclick="selectOccasion('Anniversary')">Anniversary</button>
+          <button class="opt-btn" onclick="selectOccasion('Graduation')">Graduation</button>
+          <button class="opt-btn" onclick="selectOccasion('Wedding')">Wedding</button>
+          <button class="opt-btn" onclick="selectOccasion('Just Because')">Just Because</button>
+        </div>
+      </div>
 
-  /* ── KEYBOARD ── */
-  document.addEventListener('keydown', e => {
-    if (!cards.classList.contains('active') || S.loading) return;
-    if ($('panel').classList.contains('open')) { if (e.key === 'Escape') closePanel(); return; }
-    if (e.key === 'ArrowRight') accept();
-    if (e.key === 'ArrowLeft')  decline();
-  });
+      <!-- Step 2 — Recipient -->
+      <div class="setup-card hidden" id="step-2">
+        <div class="card-hd">
+          <div class="card-icon">👤</div>
+          <div class="card-hd-text">
+            <h2>Who are you shopping for?</h2>
+            <p>Tell us a bit about them.</p>
+          </div>
+        </div>
+        <input class="t-input" type="text" id="recipient"
+               placeholder="e.g. my mom, best friend, coworker…" maxlength="120" />
+        <p class="err" id="err-rec">Please describe who you're shopping for.</p>
+        <button class="btn-p" onclick="goStep3()" style="margin-top:20px">Continue →</button>
+      </div>
 
-  /* ── UTILS ── */
-  function esc(s) {
-    const d = document.createElement('div');
-    d.textContent = s ?? '';
-    return d.innerHTML;
-  }
-</script>
+      <!-- Step 3 — Budget -->
+      <div class="setup-card hidden" id="step-3">
+        <div class="card-hd">
+          <div class="card-icon">💰</div>
+          <div class="card-hd-text">
+            <h2>What's your budget?</h2>
+            <p>We'll find something perfect in range.</p>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="dollar"><input class="t-input" type="number" id="bmin" placeholder="25" min="1" max="50000" value="25" /></div>
+          <span class="budget-div">→</span>
+          <div class="dollar"><input class="t-input" type="number" id="bmax" placeholder="100" min="1" max="50000" value="100" /></div>
+        </div>
+        <p class="err" id="err-budget">Enter a valid range (min &lt; max).</p>
+        <button class="btn-p" onclick="startFinding()" style="margin-top:20px">Find Gifts ✨</button>
+      </div>
+    </div>
+
+    <!-- Card screen -->
+    <div id="card-screen" class="hidden">
+      <div class="topbar">
+        <div class="topbar-stats">
+          <span class="topbar-pill">💚 <span id="cnt-saved">0</span></span>
+          <span class="topbar-pill">💨 <span id="cnt-skip">0</span></span>
+        </div>
+        <button class="topbar-btn" onclick="openFilters()">⚙ Filters</button>
+      </div>
+
+      <div class="stack">
+        <div class="gift-card" id="card">
+          <div class="c-state"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="act-btn btn-skip" id="btn-no"  onclick="decline()">✕</button>
+        <button class="act-btn btn-save" id="btn-yes" onclick="accept()">♥</button>
+      </div>
+
+      <p class="hint"><kbd>←</kbd> Skip &nbsp; <kbd>→</kbd> Save</p>
+
+      <div class="card-bottom">
+        <button class="bottom-btn" onclick="openPanel()">🎁 Saved Gifts (<span id="cnt-panel">0</span>)</button>
+      </div>
+    </div>
+
+  </div><!-- #app -->
+
+  <!-- Backdrop -->
+  <div class="backdrop" id="backdrop" onclick="closeAll()"></div>
+
+  <!-- Filter panel -->
+  <div class="filter-panel" id="filter-panel">
+    <div class="panel-hd">
+      <h2 class="panel-title">Filters</h2>
+      <button class="panel-close" onclick="closeFilters()">✕</button>
+    </div>
+    <div class="filter-body">
+      <div class="f-group">
+        <label class="f-label" for="f-rec">Who are you shopping for?</label>
+        <input class="t-input" type="text" id="f-rec" maxlength="120" />
+      </div>
+      <div class="f-group">
+        <label class="f-label">Budget range</label>
+        <div class="budget-row">
+          <div class="dollar"><input class="t-input" type="number" id="f-bmin" min="1" max="50000" /></div>
+          <span class="budget-div">→</span>
+          <div class="dollar"><input class="t-input" type="number" id="f-bmax" min="1" max="50000" /></div>
+        </div>
+        <p class="err" id="f-err">Enter a valid range (min &lt; max).</p>
+      </div>
+      <button class="btn-p" onclick="applyFilters()">Apply Filters ✨</button>
+    </div>
+  </div>
+
+  <!-- Saved panel -->
+  <div class="panel" id="panel">
+    <div class="panel-hd">
+      <h2 class="panel-title">Saved Gifts 💝</h2>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="saved-list" id="saved-list">
+      <div class="empty"><div class="empty-icon">🎀</div><p>No saved gifts yet — swipe right!</p></div>
+    </div>
+    <div class="panel-footer">
+      <button class="panel-footer-btn btn-reset" onclick="resetSession()">↩ New search</button>
+      <button class="panel-footer-btn btn-signout" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    /* ── SUPABASE ── */
+    const { createClient } = window.supabase;
+    const sb = createClient(
+      'https://devxzpkaboprzzllxykm.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRldnh6cGthYm9wcnp6bGx4eWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNjE5MTUsImV4cCI6MjA5NjYzNzkxNX0.h6gtyrIhGZYgE9Jq5KL62X77xr8lAabiPs10JaH9vsU'
+    );
+
+    /* ── STATE ── */
+    const S = {
+      occasion: '', recipient: '', bmin: 25, bmax: 100,
+      gift: null, saved: [], declined: [], skipped: 0, seen: [],
+      loading: false, drag: false, x0: 0, dx: 0,
+    };
+
+    let authMode = 'signin';
+
+    /* ── INIT ── */
+    function hideLoader() { $('loading-screen').classList.add('hidden'); }
+
+    // Safety timeout — if Supabase hangs, show auth after 5s
+    setTimeout(() => {
+      if (!$('loading-screen').classList.contains('hidden')) {
+        hideLoader(); showAuth();
+      }
+    }, 5000);
+
+    sb.auth.getSession().then(({ data: { session } }) => {
+      hideLoader();
+      if (session) { showApp(); loadSavedFromDb(); }
+      else showAuth();
+    }).catch(() => { hideLoader(); showAuth(); });
+
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN')  { $('auth-screen').classList.add('hidden'); showApp(); loadSavedFromDb(); }
+      if (event === 'SIGNED_OUT') { $('app').classList.add('hidden'); showAuth(); resetAll(); }
+    });
+
+    function showAuth() {
+      $('auth-screen').classList.remove('hidden');
+      $('app').classList.add('hidden');
+      $('profile-menu').classList.add('hidden');
+    }
+    async function showApp() {
+      $('auth-screen').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      $('profile-menu').classList.remove('hidden');
+      const { data: { user } } = await sb.auth.getUser();
+      if (user) $('profile-email-label').textContent = user.email || user.user_metadata?.full_name || 'Signed in';
+    }
+
+    /* ── AUTH ── */
+    async function signInGoogle() {
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+      if (error) showMsg(error.message, 'error');
+    }
+
+    async function submitEmail() {
+      const email = $('auth-email').value.trim();
+      const pass  = $('auth-password').value;
+      if (!email || !pass) { showMsg('Please fill in both fields.', 'error'); return; }
+      $('auth-submit').disabled = true;
+      $('auth-submit').textContent = 'Please wait…';
+      let error;
+      if (authMode === 'signin') {
+        ({ error } = await sb.auth.signInWithPassword({ email, password: pass }));
+      } else {
+        ({ error } = await sb.auth.signUp({ email, password: pass }));
+        if (!error) { showMsg('Check your email to confirm your account!', 'success'); $('auth-submit').textContent = 'Sign Up'; $('auth-submit').disabled = false; return; }
+      }
+      if (error) showMsg(error.message, 'error');
+      $('auth-submit').textContent = authMode === 'signin' ? 'Sign In' : 'Sign Up';
+      $('auth-submit').disabled = false;
+    }
+
+    function toggleMode() {
+      authMode = authMode === 'signin' ? 'signup' : 'signin';
+      const isSignup = authMode === 'signup';
+      $('auth-submit').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      $('auth-toggle-text').textContent = isSignup ? 'Already have an account?' : "Don't have an account?";
+      $('auth-toggle-link').textContent = isSignup ? 'Sign in' : 'Sign up';
+      hideMsg();
+    }
+
+    async function signOut() {
+      await sb.auth.signOut();
+    }
+
+    function showMsg(msg, type) {
+      const el = $('auth-msg');
+      el.textContent = msg; el.className = 'auth-msg ' + type;
+      el.style.display = 'block';
+    }
+    function hideMsg() { $('auth-msg').style.display = 'none'; }
+
+    $('auth-email').addEventListener('keydown', e => { if (e.key === 'Enter') $('auth-password').focus(); });
+    $('auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') submitEmail(); });
+
+    /* ── SUPABASE DATA ── */
+    async function saveGiftToDb(gift) {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { error } = await sb.from('saved_gifts').insert({
+        user_id:     user.id,
+        name:        gift.name,
+        description: gift.description,
+        price:       gift.price,
+        category:    gift.category,
+        emoji:       gift.emoji,
+        amazon_url:  gift.amazonUrl,
+        image_url:   gift.imageUrl || null,
+        search_terms: gift.searchTerms || null,
+        occasion:    S.occasion,
+        recipient:   S.recipient,
+        budget_min:  S.bmin,
+        budget_max:  S.bmax,
+      });
+      if (error) console.error('Save error:', error.message);
+    }
+
+    async function deleteGiftFromDb(id) {
+      await sb.from('saved_gifts').delete().eq('id', id);
+    }
+
+    async function loadSavedFromDb() {
+      const { data } = await sb.from('saved_gifts')
+        .select('*').order('created_at', { ascending: false });
+      if (data) {
+        S.saved = data.map(r => ({
+          id: r.id, name: r.name, description: r.description,
+          price: r.price, category: r.category, emoji: r.emoji,
+          amazonUrl: r.amazon_url, imageUrl: r.image_url, searchTerms: r.search_terms,
+        }));
+        updateStats();
+      }
+    }
+
+    /* ── STEP NAV ── */
+    function setDots(n) { [1,2,3,4].forEach(i => $('sd-'+i)?.classList.toggle('active', i <= n)); }
+
+    function selectOccasion(occ) {
+      S.occasion = occ;
+      document.querySelectorAll('.opt-btn').forEach(b => b.classList.toggle('selected', b.textContent.trim() === occ));
+      setTimeout(() => { $('step-1').classList.add('hidden'); $('step-2').classList.remove('hidden'); setDots(2); }, 280);
+    }
+
+    function goStep3() {
+      const rec = $('recipient').value.trim();
+      if (!rec) { $('err-rec').style.display = 'block'; return; }
+      $('err-rec').style.display = 'none';
+      S.recipient = rec;
+      $('step-2').classList.add('hidden'); $('step-3').classList.remove('hidden'); setDots(3);
+    }
+
+    $('recipient').addEventListener('keydown', e => { if (e.key === 'Enter') goStep3(); });
+
+    function startFinding() {
+      const bmin = parseInt($('bmin').value), bmax = parseInt($('bmax').value);
+      if (!bmin || !bmax || bmin >= bmax) { $('err-budget').style.display = 'block'; return; }
+      $('err-budget').style.display = 'none';
+      S.bmin = bmin; S.bmax = bmax;
+      $('setup-wrapper').classList.add('hidden');
+      $('card-screen').classList.remove('hidden');
+      setDots(4); load();
+    }
+
+    /* ── API ── */
+    async function load() {
+      if (S.loading) return;
+      S.loading = true; setButtons(false); showLoading();
+      try {
+        const res = await fetch('/api/suggest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            occasion: S.occasion, recipient: S.recipient,
+            budgetMin: S.bmin, budgetMax: S.bmax,
+            previousSuggestions: S.seen,
+            liked: S.saved.map(g => g.name), disliked: S.declined,
+          }),
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Server error'); }
+        const gift = await res.json();
+        S.gift = gift; S.seen.push(gift.name); renderGift(gift);
+      } catch (e) { renderError(e.message); }
+      finally { S.loading = false; setButtons(true); }
+    }
+
+    /* ── RENDER ── */
+    const card = $('card');
+
+    function swapImgPh(img) {
+      const d = document.createElement('div');
+      d.className = 'gift-card-img-ph'; d.textContent = img.dataset.emoji || '🎁';
+      img.replaceWith(d);
+    }
+
+    function showLoading() {
+      card.innerHTML = `<div class="c-state"><div class="spinner"></div><p class="c-text">Finding gifts for ${esc(S.recipient)}…</p></div>`;
+      card.style.transform = ''; card.style.opacity = '1';
+    }
+
+    function renderGift(g) {
+      const img = g.imageUrl
+        ? `<img class="gift-card-img" src="${esc(g.imageUrl)}" alt="${esc(g.name)}" onerror="swapImgPh(this)" data-emoji="${esc(g.emoji)}">`
+        : `<div class="gift-card-img-ph">${esc(g.emoji)}</div>`;
+      card.innerHTML = `
+        <div class="s-overlay ov-save" id="oy"><span class="ov-label">SAVE</span></div>
+        <div class="s-overlay ov-skip" id="on"><span class="ov-label">SKIP</span></div>
+        ${img}
+        <div class="gift-body">
+          <div class="gift-chip">${esc(g.emoji)} ${esc(g.category)}</div>
+          <h2 class="gift-name">${esc(g.name)}</h2>
+          <p class="gift-desc">${esc(g.description)}</p>
+          <div class="gift-price">${esc(g.price)}</div>
+          <a href="${esc(g.amazonUrl)}" target="_blank" rel="noopener" class="gift-amazon" onclick="event.stopPropagation()">
+            🛒 View on Amazon
+          </a>
+        </div>`;
+      card.style.transform = ''; card.style.opacity = '1';
+      card.classList.add('card-in');
+      setTimeout(() => card.classList.remove('card-in'), 300);
+      attachDrag();
+    }
+
+    function renderError(msg) {
+      card.innerHTML = `<div class="c-state"><div style="font-size:40px">😬</div><p class="c-text">${esc(msg)}</p><button class="retry-btn" onclick="load()">Try again</button></div>`;
+    }
+
+    /* ── DRAG ── */
+    function attachDrag() { card.onmousedown = card.ontouchstart = dragStart; }
+
+    function dragStart(e) {
+      if (S.loading) return;
+      if (e.target.closest('.gift-amazon')) return;
+      S.drag = true; S.x0 = cx(e); S.dx = 0; card.style.transition = 'none';
+      document.onmousemove = document.ontouchmove = dragMove;
+      document.onmouseup  = document.ontouchend  = dragEnd;
+    }
+
+    function dragMove(e) {
+      if (!S.drag) return;
+      S.dx = cx(e) - S.x0;
+      card.style.transform = `translateX(${S.dx}px) rotate(${S.dx*.06}deg)`;
+      const oy = $('oy'), on = $('on'); if (!oy) return;
+      oy.style.opacity = S.dx >  50 ? Math.min(1, (S.dx-50)/90) : 0;
+      on.style.opacity = S.dx < -50 ? Math.min(1, (-S.dx-50)/90) : 0;
+    }
+
+    function dragEnd() {
+      if (!S.drag) return; S.drag = false;
+      document.onmousemove = document.ontouchmove = null;
+      document.onmouseup  = document.ontouchend  = null;
+      card.style.transition = 'transform .3s ease, opacity .3s ease';
+      if      (S.dx >  110) accept();
+      else if (S.dx < -110) decline();
+      else {
+        card.style.transform = '';
+        const oy = $('oy'), on = $('on');
+        if (oy) oy.style.opacity = 0;
+        if (on) on.style.opacity = 0;
+      }
+    }
+
+    const cx = e => e.touches ? e.touches[0].clientX : e.clientX;
+
+    /* ── ACCEPT / DECLINE ── */
+    function accept() {
+      if (!S.gift || S.loading) return;
+      card.style.transition = 'transform .4s ease, opacity .4s ease';
+      card.style.transform = 'translateX(160%) rotate(28deg)'; card.style.opacity = '0';
+      saveGiftToDb(S.gift);
+      S.saved.unshift(S.gift); updateStats(); setTimeout(load, 360);
+    }
+
+    function decline() {
+      if (!S.gift || S.loading) return;
+      card.style.transition = 'transform .4s ease, opacity .4s ease';
+      card.style.transform = 'translateX(-160%) rotate(-28deg)'; card.style.opacity = '0';
+      S.declined.push(S.gift.name); S.skipped++; updateStats(); setTimeout(load, 360);
+    }
+
+    function updateStats() {
+      $('cnt-saved').textContent = S.saved.length;
+      $('cnt-skip').textContent  = S.skipped;
+      $('cnt-panel').textContent = S.saved.length;
+    }
+
+    function setButtons(on) { $('btn-yes').disabled = !on; $('btn-no').disabled = !on; }
+
+    /* ── PANELS ── */
+    function openPanel()   { $('panel').classList.add('open'); $('backdrop').classList.add('on'); renderList(); }
+    function closePanel()  { $('panel').classList.remove('open'); $('backdrop').classList.remove('on'); }
+
+    function openFilters() {
+      $('f-rec').value = S.recipient; $('f-bmin').value = S.bmin; $('f-bmax').value = S.bmax;
+      $('f-err').style.display = 'none';
+      $('filter-panel').classList.add('open'); $('backdrop').classList.add('on');
+      setTimeout(() => $('f-rec').focus(), 50);
+    }
+    function closeFilters() { $('filter-panel').classList.remove('open'); $('backdrop').classList.remove('on'); }
+    function closeAll() { closePanel(); closeFilters(); }
+
+    function applyFilters() {
+      const rec = $('f-rec').value.trim(), bmin = parseInt($('f-bmin').value), bmax = parseInt($('f-bmax').value);
+      if (!rec || !bmin || !bmax || bmin >= bmax) { $('f-err').style.display = 'block'; return; }
+      S.recipient = rec; S.bmin = bmin; S.bmax = bmax;
+      S.seen = []; S.declined = []; S.skipped = 0; S.gift = null;
+      updateStats(); closeFilters(); load();
+    }
+
+    async function renderList() {
+      const el = $('saved-list');
+      el.innerHTML = '<div class="c-state" style="height:120px"><div class="spinner"></div></div>';
+      await loadSavedFromDb();
+      if (!S.saved.length) {
+        el.innerHTML = '<div class="empty"><div class="empty-icon">🎀</div><p>No saved gifts yet — swipe right!</p></div>';
+        return;
+      }
+      el.innerHTML = S.saved.map(g => `
+        <div class="saved-item" id="si-${g.id}">
+          <span class="saved-emoji">${esc(g.emoji)}</span>
+          <div style="flex:1">
+            <div class="saved-name">${esc(g.name)}</div>
+            <div class="saved-price">${esc(g.price)}</div>
+            <div class="saved-actions">
+              <a href="${esc(g.amazonUrl)}" target="_blank" rel="noopener" class="saved-link">🛒 Amazon</a>
+              <button class="del-btn" onclick="removeGift('${g.id}')">Remove</button>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    async function removeGift(id) {
+      await deleteGiftFromDb(id);
+      S.saved = S.saved.filter(g => g.id !== id);
+      const el = $('si-'+id);
+      if (el) el.remove();
+      updateStats();
+      if (!S.saved.length) $('saved-list').innerHTML = '<div class="empty"><div class="empty-icon">🎀</div><p>No saved gifts yet — swipe right!</p></div>';
+    }
+
+    function resetSession() {
+      S.occasion = ''; S.recipient = ''; S.bmin = 25; S.bmax = 100;
+      S.gift = null; S.declined = []; S.skipped = 0; S.seen = []; S.loading = false;
+      closeAll();
+      $('card-screen').classList.add('hidden');
+      $('setup-wrapper').classList.remove('hidden');
+      [1,2,3].forEach(i => $('step-'+i)?.classList.toggle('hidden', i !== 1));
+      $('recipient').value = ''; updateStats(); setDots(1);
+    }
+
+    function resetAll() {
+      resetSession();
+      S.saved = []; updateStats();
+    }
+
+    /* ── KEYBOARD ── */
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeAll(); return; }
+      if ($('card-screen').classList.contains('hidden') || S.loading) return;
+      if ($('panel').classList.contains('open') || $('filter-panel').classList.contains('open')) return;
+      if (e.key === 'ArrowRight') accept();
+      if (e.key === 'ArrowLeft')  decline();
+    });
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s??''; return d.innerHTML; }
+  </script>
 </body>
 </html>
